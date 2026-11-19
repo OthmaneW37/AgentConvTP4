@@ -10,6 +10,8 @@ import dev.langchain4j.rag.RetrievalAugmentor;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.query.router.LanguageModelQueryRouter;
 import dev.langchain4j.rag.query.router.QueryRouter;
+import dev.langchain4j.rag.query.transformer.CompressingQueryTransformer;
+import dev.langchain4j.rag.query.transformer.QueryTransformer;
 import dev.langchain4j.service.AiServices;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.Dependent;
@@ -72,7 +74,12 @@ public class LlmClient implements Serializable {
         // Test 4 : pas de RAG si la question ne concerne aucun des 2 PDF (par exemple "Bonjour").
         QueryRouter queryRouter = new QueryRouterAvecOuSansRag(model, routeurEntreLesPdf);
 
+        // Test 2 : la question est réécrite en tenant compte de la conversation avant la recherche
+        // (par exemple "à quoi c'est comparé ?" après une question sur le fine-tuning).
+        QueryTransformer queryTransformer = new CompressingQueryTransformer(model);
+
         RetrievalAugmentor retrievalAugmentor = DefaultRetrievalAugmentor.builder()
+                .queryTransformer(queryTransformer)
                 .queryRouter(queryRouter)
                 .build();
 
