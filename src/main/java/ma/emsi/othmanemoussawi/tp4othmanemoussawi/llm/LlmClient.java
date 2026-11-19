@@ -15,6 +15,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.Dependent;
 import jakarta.inject.Inject;
 import ma.emsi.othmanemoussawi.tp4othmanemoussawi.rag.MagasinEmbeddings;
+import ma.emsi.othmanemoussawi.tp4othmanemoussawi.rag.QueryRouterAvecOuSansRag;
 
 import java.io.Serializable;
 import java.util.HashMap;
@@ -66,7 +67,10 @@ public class LlmClient implements Serializable {
         descriptions.put(magasinEmbeddings.getContentRetrieverCuisine(),
                 "Document sur la cuisine marocaine : plats traditionnels (tajine, couscous, harira, pastilla), "
                         + "recettes, thé à la menthe et pâtisseries");
-        QueryRouter queryRouter = new LanguageModelQueryRouter(model, descriptions);
+        QueryRouter routeurEntreLesPdf = new LanguageModelQueryRouter(model, descriptions);
+
+        // Test 4 : pas de RAG si la question ne concerne aucun des 2 PDF (par exemple "Bonjour").
+        QueryRouter queryRouter = new QueryRouterAvecOuSansRag(model, routeurEntreLesPdf);
 
         RetrievalAugmentor retrievalAugmentor = DefaultRetrievalAugmentor.builder()
                 .queryRouter(queryRouter)
