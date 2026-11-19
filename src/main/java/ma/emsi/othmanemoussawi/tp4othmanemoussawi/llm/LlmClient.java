@@ -5,13 +5,24 @@ import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.google.genai.GoogleGenAiChatModel;
+import dev.langchain4j.rag.DefaultRetrievalAugmentor;
+import dev.langchain4j.rag.RetrievalAugmentor;
+import dev.langchain4j.rag.content.retriever.ContentRetriever;
+import dev.langchain4j.rag.query.router.LanguageModelQueryRouter;
+import dev.langchain4j.rag.query.router.QueryRouter;
 import dev.langchain4j.service.AiServices;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.Dependent;
+import jakarta.inject.Inject;
+import ma.emsi.othmanemoussawi.tp4othmanemoussawi.rag.MagasinEmbeddings;
 
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Classe métier qui gère l'interface avec le LLM (Gemini) en utilisant LangChain4j.
+ * Les réponses utilisent le RAG avec 2 fichiers PDF.
  */
 @Dependent
 public class LlmClient implements Serializable {
@@ -29,20 +40,44 @@ public class LlmClient implements Serializable {
      */
     private ChatMemory chatMemory;
 
-    public LlmClient() {
+    /**
+     * Les embeddings des PDF, calculés une seule fois au démarrage de l'application.
+     */
+    @Inject
+    private MagasinEmbeddings magasinEmbeddings;
+
+    @PostConstruct
+    private void init() {
         // Récupère la clé secrète pour travailler avec l'API du LLM
         String llmKey = System.getenv("GEMINI_KEY");
 
         ChatModel model = GoogleGenAiChatModel.builder()
                 .apiKey(llmKey)
                 .modelName("gemini-3.5-flash-lite")
+                .temperature(0.3)
+                .logRequestsAndResponses(true)
+                .build();
+
+        // Test 3 : routage. Le LM choisit la source à utiliser à partir de ces descriptions.
+        Map<ContentRetriever, String> descriptions = new HashMap<>();
+        descriptions.put(magasinEmbeddings.getContentRetrieverIa(),
+                "Support de cours sur l'intelligence artificielle : le RAG (Retrieval Augmented Generation), "
+                        + "le fine-tuning, les embeddings et LangChain4j");
+        descriptions.put(magasinEmbeddings.getContentRetrieverCuisine(),
+                "Document sur la cuisine marocaine : plats traditionnels (tajine, couscous, harira, pastilla), "
+                        + "recettes, thé à la menthe et pâtisseries");
+        QueryRouter queryRouter = new LanguageModelQueryRouter(model, descriptions);
+
+        RetrievalAugmentor retrievalAugmentor = DefaultRetrievalAugmentor.builder()
+                .queryRouter(queryRouter)
                 .build();
 
         this.chatMemory = MessageWindowChatMemory.withMaxMessages(20);
         this.assistant = AiServices.builder(Assistant.class)
-                                   .chatModel(model)
-                                   .chatMemory(chatMemory)
-                                   .build();
+                .chatModel(model)
+                .chatMemory(chatMemory)
+                .retrievalAugmentor(retrievalAugmentor)
+                .build();
     }
 
     /**
